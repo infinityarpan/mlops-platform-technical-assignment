@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+mlops.db
+.env
+node_modules/
+dist/
+.angular/
+coverage/
+*.log
+docs/submission-email.md
