@@ -4,7 +4,7 @@ Operators at a plant need somewhere to park model versions, promote them, and se
 
 **Built:** registry, lifecycle, async deploy + retry/rollback, metrics read API, Angular screens, Compose, tests.
 
-**Not built (on purpose):** real KServe, OIDC, tenants, a metrics warehouse. Those are sketched below so the cut is explicit.
+**Not built (on purpose):** real KServe, OIDC, tenants, a metrics warehouse. Those are sketched below so the cut is explicit. No Kubernetes manifests in the repo — Compose is what you run.
 
 ```
 browser  →  nginx/Angular
