@@ -1,0 +1,33 @@
+from app.services.registry import (
+    approve_version,
+    create_deployment,
+    create_model,
+    get_deployment,
+    get_model_with_versions,
+    list_deployments,
+    list_metrics,
+    list_models,
+    list_versions,
+    process_deployment,
+    promote_version,
+    register_version,
+    retry_deployment,
+    rollback_deployment,
+)
+
+__all__ = [
+    "approve_version",
+    "create_deployment",
+    "create_model",
+    "get_deployment",
+    "get_model_with_versions",
+    "list_deployments",
+    "list_metrics",
+    "list_models",
+    "list_versions",
+    "process_deployment",
+    "promote_version",
+    "register_version",
+    "retry_deployment",
+    "rollback_deployment",
+]
