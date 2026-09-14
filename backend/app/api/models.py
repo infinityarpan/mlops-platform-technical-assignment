@@ -7,7 +7,7 @@ from app.schemas import (
     ModelCreate,
     ModelRead,
     ModelSummary,
-    PromoteRequest,
+    StageTransitionRequest,
     VersionCreate,
     VersionRead,
 )
@@ -69,25 +69,25 @@ def list_versions(model_id: str, db: Session = Depends(db_session)):
     return registry.list_versions(db, model_id)
 
 
-@router.post("/{model_id}/versions/{version}/approve", response_model=VersionRead)
-def approve_version(
+@router.post("/{model_id}/versions/{version}/promote-to-staging", response_model=VersionRead)
+def promote_to_staging(
     model_id: str,
     version: str,
     db: Session = Depends(db_session),
     role: Role = Depends(actor_role),
 ):
-    return registry.approve_version(db, model_id, version, role)
+    return registry.promote_to_staging(db, model_id, version, role)
 
 
-@router.post("/{model_id}/versions/{version}/promote", response_model=VersionRead)
-def promote_version(
+@router.post("/{model_id}/versions/{version}/transition-stage", response_model=VersionRead)
+def transition_stage(
     model_id: str,
     version: str,
-    payload: PromoteRequest,
+    payload: StageTransitionRequest,
     db: Session = Depends(db_session),
     role: Role = Depends(actor_role),
 ):
-    return registry.promote_version(db, model_id, version, payload.target_stage, role)
+    return registry.transition_stage(db, model_id, version, payload.target_stage, role)
 
 
 @router.get("/{model_id}/metrics")
@@ -100,5 +100,5 @@ def get_metrics(
     from app.schemas import MetricSampleRead, MetricsResponse
 
     samples = registry.list_metrics(db, model_id, version, environment)
-    parsed = [MetricSampleRead.model_validate(s) for s in samples]
+    parsed = [MetricSampleRead.model_validate(sample) for sample in samples]
     return MetricsResponse(model_id=model_id, samples=parsed, latest=parsed[-1] if parsed else None)

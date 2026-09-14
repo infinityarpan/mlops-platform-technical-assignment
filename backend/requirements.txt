@@ -10,5 +10,8 @@ celery[redis]==5.4.0
 redis==5.2.1
 prometheus-client==0.21.1
 httpx==0.28.1
+mlflow==3.16.0
+evidently>=0.4.40
+pandas>=2.2.0
 pytest==8.3.4
 ruff==0.8.4

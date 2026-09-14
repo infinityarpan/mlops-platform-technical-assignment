@@ -34,12 +34,17 @@ import { StatusPanelComponent } from '../status-panel.component';
             <mat-card-title>{{ version.version }}</mat-card-title>
             <mat-card-content>
               <p>Stage: {{ version.lifecycle_stage }}</p>
-              <p>Approved: {{ version.approved }}</p>
               <p>Framework: {{ version.framework || 'n/a' }}</p>
               <p>Artifact: {{ version.artifact_uri }}</p>
             </mat-card-content>
             <mat-card-actions>
-              <button mat-stroked-button (click)="approve(version)" [disabled]="version.approved">Approve</button>
+              <button
+                mat-stroked-button
+                (click)="promoteToStaging(version)"
+                [disabled]="version.lifecycle_stage !== 'None'"
+              >
+                Promote to Staging
+              </button>
             </mat-card-actions>
           </mat-card>
         }
@@ -118,10 +123,9 @@ export class ModelDetailComponent implements OnInit {
     });
   }
 
-  approve(version: ModelVersion): void {
-    this.api.approveVersion(version.model_id, version.version).subscribe({
+  promoteToStaging(version: ModelVersion): void {
+    this.api.promoteToStaging(version.model_id, version.version).subscribe({
       next: (updated) => {
-        version.approved = updated.approved;
         version.lifecycle_stage = updated.lifecycle_stage;
       },
       error: (err: Error) => (this.error = err.message)

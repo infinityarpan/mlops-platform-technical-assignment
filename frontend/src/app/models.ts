@@ -18,7 +18,6 @@ export interface ModelVersion {
   training_data_ref?: string | null;
   tags: string[];
   extra_metadata: Record<string, unknown>;
-  approved: boolean;
   lifecycle_stage: string;
   lock_version: number;
   created_at: string;

@@ -15,15 +15,15 @@ Headers worth knowing:
 | GET | `/models/{id}` |
 | POST | `/models/{id}/versions` |
 | GET | `/models/{id}/versions` |
-| POST | `/models/{id}/versions/{version}/approve` |
-| POST | `/models/{id}/versions/{version}/promote` |
+| POST | `/models/{id}/versions/{version}/promote-to-staging` |
+| POST | `/models/{id}/versions/{version}/transition-stage` |
 | POST | `/deployments` (202) |
 | GET | `/deployments` (`model_id`, `environment` query) |
 | GET | `/deployments/{id}` |
 | GET | `/deployments/{id}/events` |
 | POST | `/deployments/{id}/retry` |
 | POST | `/deployments/{id}/rollback` |
-| GET | `/models/{id}/metrics` |
-| GET | `/health` `/ready` `/metrics` |
+| GET | `/models/{id}/metrics` (Prometheus-backed) |
+| GET | `/health` `/ready` `/metrics` (control-plane Prometheus scrape) |
 
 Errors look like problem+json: `type`, `title`, `status`, `detail`, `instance`. Conflicts 409, missing 404, validation 422, role 403.

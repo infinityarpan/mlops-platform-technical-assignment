@@ -2,12 +2,17 @@ from enum import StrEnum
 
 
 class LifecycleStage(StrEnum):
-    DRAFT = "DRAFT"
-    VALIDATED = "VALIDATED"
-    APPROVED = "APPROVED"
-    STAGING = "STAGING"
-    PRODUCTION = "PRODUCTION"
-    ARCHIVED = "ARCHIVED"
+    """MLflow model registry lifecycle expressed via aliases and tags."""
+
+    NONE = "None"
+    STAGING = "Staging"
+    PRODUCTION = "Production"
+    ARCHIVED = "Archived"
+
+
+STAGING_ALIAS = "staging"
+PRODUCTION_ALIAS = "production"
+TAG_ARCHIVED = "mlops.archived"
 
 
 class DeploymentStatus(StrEnum):
@@ -32,23 +37,23 @@ class Role(StrEnum):
 
 
 PRODUCTION_DEPLOY_STAGES = {
-    LifecycleStage.APPROVED,
     LifecycleStage.STAGING,
     LifecycleStage.PRODUCTION,
 }
 
 STAGING_DEPLOY_STAGES = {
-    LifecycleStage.VALIDATED,
-    LifecycleStage.APPROVED,
+    LifecycleStage.NONE,
     LifecycleStage.STAGING,
     LifecycleStage.PRODUCTION,
 }
 
-PROMOTE_ORDER = [
-    LifecycleStage.DRAFT,
-    LifecycleStage.VALIDATED,
-    LifecycleStage.APPROVED,
-    LifecycleStage.STAGING,
-    LifecycleStage.PRODUCTION,
-    LifecycleStage.ARCHIVED,
-]
+ALLOWED_STAGE_TRANSITIONS: dict[LifecycleStage, set[LifecycleStage]] = {
+    LifecycleStage.NONE: {
+        LifecycleStage.STAGING,
+        LifecycleStage.PRODUCTION,
+        LifecycleStage.ARCHIVED,
+    },
+    LifecycleStage.STAGING: {LifecycleStage.PRODUCTION, LifecycleStage.ARCHIVED},
+    LifecycleStage.PRODUCTION: {LifecycleStage.ARCHIVED},
+    LifecycleStage.ARCHIVED: set(),
+}

@@ -6,7 +6,7 @@ def test_worker_failure_classification(client: TestClient):
     created = client.post("/models", json={"id": "runtime-demo", "name": "M", "owner": "O"}, headers=headers)
     assert created.status_code == 201
     client.post("/models/runtime-demo/versions", json={"version": "1.0.0", "artifact_uri": "s3://a"}, headers=headers)
-    client.post("/models/runtime-demo/versions/1.0.0/approve", headers=headers)
+    client.post("/models/runtime-demo/versions/1.0.0/promote-to-staging", headers=headers)
     resp = client.post(
         "/deployments",
         json={"model_id": "runtime-demo", "version": "1.0.0", "environment": "staging", "simulate_failure": True},

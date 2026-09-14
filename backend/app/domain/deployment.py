@@ -16,7 +16,6 @@ ACTIVE_DEPLOYMENT_STATUSES = {
 
 def assert_can_deploy(
     *,
-    approved: bool,
     stage: LifecycleStage,
     environment: Environment,
 ) -> None:
@@ -27,24 +26,18 @@ def assert_can_deploy(
             "Choose an active version.",
         )
     if environment == Environment.PRODUCTION:
-        if not approved:
-            raise ConflictError(
-                "approval-required",
-                "Unapproved version cannot be deployed to production",
-                "Approve the version before requesting a production deployment.",
-            )
         if stage not in PRODUCTION_DEPLOY_STAGES:
             raise ConflictError(
                 "invalid-stage",
                 "Version is not eligible for production",
-                f"Stage {stage} is not allowed for production deployments.",
+                "Promote the version to Staging before requesting a production deployment.",
             )
         return
     if stage not in STAGING_DEPLOY_STAGES:
         raise ConflictError(
             "invalid-stage",
             "Version is not eligible for staging",
-            f"Validate the version before deploying to staging (current stage: {stage}).",
+            f"Stage {stage} is not allowed for staging deployments.",
         )
 
 

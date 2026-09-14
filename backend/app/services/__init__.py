@@ -1,5 +1,4 @@
 from app.services.registry import (
-    approve_version,
     create_deployment,
     create_model,
     get_deployment,
@@ -9,14 +8,14 @@ from app.services.registry import (
     list_models,
     list_versions,
     process_deployment,
-    promote_version,
+    promote_to_staging,
     register_version,
     retry_deployment,
     rollback_deployment,
+    transition_stage,
 )
 
 __all__ = [
-    "approve_version",
     "create_deployment",
     "create_model",
     "get_deployment",
@@ -26,8 +25,9 @@ __all__ = [
     "list_models",
     "list_versions",
     "process_deployment",
-    "promote_version",
+    "promote_to_staging",
     "register_version",
     "retry_deployment",
     "rollback_deployment",
+    "transition_stage",
 ]
