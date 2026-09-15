@@ -1,33 +1,37 @@
 from app.domain.deployment import assert_can_deploy, assert_can_retry, assert_can_rollback
 from app.domain.enums import DeploymentStatus, Environment, LifecycleStage
 from app.domain.errors import ConflictError
-from app.domain.lifecycle import assert_can_approve, assert_can_promote
+from app.domain.lifecycle import assert_can_promote, assert_can_promote_to_staging
 import pytest
 
 
-def test_production_requires_approval():
+def test_production_requires_staging_stage():
     with pytest.raises(ConflictError) as exc:
         assert_can_deploy(
-            approved=False,
-            stage=LifecycleStage.VALIDATED,
+            stage=LifecycleStage.NONE,
             environment=Environment.PRODUCTION,
         )
-    assert exc.value.code == "approval-required"
+    assert exc.value.code == "invalid-stage"
 
 
-def test_approved_production_allowed():
+def test_staging_stage_production_allowed():
     assert_can_deploy(
-        approved=True,
-        stage=LifecycleStage.APPROVED,
+        stage=LifecycleStage.STAGING,
         environment=Environment.PRODUCTION,
     )
 
 
-def test_staging_requires_validated():
+def test_staging_deploy_allows_none():
+    assert_can_deploy(
+        stage=LifecycleStage.NONE,
+        environment=Environment.STAGING,
+    )
+
+
+def test_archived_cannot_deploy():
     with pytest.raises(ConflictError):
         assert_can_deploy(
-            approved=False,
-            stage=LifecycleStage.DRAFT,
+            stage=LifecycleStage.ARCHIVED,
             environment=Environment.STAGING,
         )
 
@@ -54,11 +58,15 @@ def test_rollback_requires_previous_succeeded_production():
         )
 
 
-def test_approve_archived_rejected():
+def test_promote_to_staging_requires_none():
     with pytest.raises(ConflictError):
-        assert_can_approve(approved=False, stage=LifecycleStage.ARCHIVED)
+        assert_can_promote_to_staging(stage=LifecycleStage.STAGING)
+    assert_can_promote_to_staging(stage=LifecycleStage.NONE)
 
 
-def test_promote_skips_illegal():
+def test_promote_follows_mlflow_transitions():
+    assert_can_promote(current=LifecycleStage.NONE, target=LifecycleStage.STAGING)
+    assert_can_promote(current=LifecycleStage.STAGING, target=LifecycleStage.PRODUCTION)
+    assert_can_promote(current=LifecycleStage.NONE, target=LifecycleStage.ARCHIVED)
     with pytest.raises(ConflictError):
-        assert_can_promote(current=LifecycleStage.DRAFT, target=LifecycleStage.PRODUCTION)
+        assert_can_promote(current=LifecycleStage.PRODUCTION, target=LifecycleStage.STAGING)

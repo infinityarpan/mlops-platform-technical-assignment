@@ -1,0 +1,84 @@
+{
+  "realm": "mlops",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "defaultDefaultClientScopes": ["role_list", "profile", "email", "roles", "web-origins", "acr"],
+  "roles": {
+    "realm": [
+      { "name": "viewer", "description": "Read-only access" },
+      { "name": "approver", "description": "Promote models to staging" },
+      { "name": "operator", "description": "Deploy, retry, and rollback" },
+      { "name": "admin", "description": "Full platform access" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "mlops-ui",
+      "name": "MLOps Angular UI",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "fullScopeAllowed": true,
+      "redirectUris": [
+        "http://localhost:4200/*",
+        "http://localhost:4200"
+      ],
+      "webOrigins": [
+        "http://localhost:4200",
+        "+"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "viewer",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "View",
+      "lastName": "Only",
+      "email": "viewer@example.com",
+      "credentials": [{ "type": "password", "value": "viewer", "temporary": false }],
+      "realmRoles": ["viewer"]
+    },
+    {
+      "username": "approver",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Release",
+      "lastName": "Approver",
+      "email": "approver@example.com",
+      "credentials": [{ "type": "password", "value": "approver", "temporary": false }],
+      "realmRoles": ["approver"]
+    },
+    {
+      "username": "operator",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Deploy",
+      "lastName": "Operator",
+      "email": "operator@example.com",
+      "credentials": [{ "type": "password", "value": "operator", "temporary": false }],
+      "realmRoles": ["operator"]
+    },
+    {
+      "username": "admin",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Platform",
+      "lastName": "Admin",
+      "email": "admin@example.com",
+      "credentials": [{ "type": "password", "value": "admin", "temporary": false }],
+      "realmRoles": ["admin"]
+    }
+  ]
+}

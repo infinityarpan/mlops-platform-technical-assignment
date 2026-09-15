@@ -23,6 +23,50 @@ services:
       timeout: 3s
       retries: 10
 
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.16.0
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
+    environment:
+      MLFLOW_DISABLE_AGENT_HINT: "1"
+    volumes:
+      - mlflow_data:/mlflow
+    ports:
+      - "5000:5000"
+
+  pushgateway:
+    image: prom/pushgateway:v1.10.0
+    ports:
+      - "9091:9091"
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.7
+    command: start-dev --import-realm --hostname=http://localhost:8080
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME: localhost
+      KC_HOSTNAME_PORT: "8080"
+    volumes:
+      - ./keycloak/mlops-realm.json:/opt/keycloak/data/import/mlops-realm.json:ro
+    ports:
+      - "8080:8080"
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
   backend:
     build: ./backend
     environment:
@@ -31,6 +75,17 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       DEPLOY_STEP_DELAY_SECONDS: "0.4"
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_DISABLE_AGENT_HINT: "1"
+      PROMETHEUS_URL: http://prometheus:9090
+      PUSHGATEWAY_URL: http://pushgateway:9091
+      DRIFT_DATA_DIR: /app/data/drift
+      AUTH_MODE: oidc
+      KEYCLOAK_ISSUER: http://localhost:8080/realms/mlops
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/mlops/protocol/openid-connect/certs
+      KEYCLOAK_CLIENT_ID: mlops-ui
+    volumes:
+      - ./data:/app/data
     ports:
       - "8000:8000"
     depends_on:
@@ -38,6 +93,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mlflow:
+        condition: service_started
+      prometheus:
+        condition: service_started
+      pushgateway:
+        condition: service_started
+      keycloak:
+        condition: service_started
 
   worker:
     build: ./backend
@@ -48,11 +111,18 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/1
       DEPLOY_STEP_DELAY_SECONDS: "0.4"
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      PROMETHEUS_URL: http://prometheus:9090
+      DRIFT_DATA_DIR: /app/data/drift
+    volumes:
+      - ./data:/app/data
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mlflow:
+        condition: service_started
 
   seed:
     build: ./backend
@@ -61,12 +131,21 @@ services:
     environment:
       DATABASE_URL: postgresql://mlops:mlops@db:5432/mlops
       PYTHONPATH: /workspace/backend
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      PUSHGATEWAY_URL: http://pushgateway:9091
+      PROMETHEUS_URL: http://prometheus:9090
+      METRICS_SEED_INTERVAL_SECONDS: "0.2"
+      DRIFT_DATA_DIR: /workspace/data/drift
     volumes:
       - ./:/workspace
     depends_on:
       db:
         condition: service_healthy
-      backend:
+      mlflow:
+        condition: service_started
+      pushgateway:
+        condition: service_started
+      prometheus:
         condition: service_started
     restart: "no"
 
@@ -76,3 +155,7 @@ services:
       - "4200:80"
     depends_on:
       - backend
+      - keycloak
+
+volumes:
+  mlflow_data:

@@ -9,14 +9,19 @@ from app.domain.auth import APPROVE_ROLES, WRITE_ROLES, require_role
 from app.domain.deployment import assert_can_deploy, assert_can_retry, assert_can_rollback
 from app.domain.enums import DeploymentStatus, Environment, LifecycleStage, Role
 from app.domain.errors import ConflictError, NotFoundError
-from app.domain.lifecycle import assert_can_approve, assert_can_promote
-from app.models.entities import Deployment, DeploymentEvent, MetricSample, Model, ModelVersion, new_id
+from app.models.entities import Deployment, DeploymentEvent, new_id
+from app.services.mlflow_registry import MLflowRegistry, get_model_registry
+from app.services.registry_records import ModelRecord, VersionRecord
 
 logger = structlog.get_logger()
 
 
 def _now() -> datetime:
     return datetime.now(UTC)
+
+
+def _registry(registry: MLflowRegistry | None = None) -> MLflowRegistry:
+    return registry or get_model_registry()
 
 
 def add_event(db: Session, deployment: Deployment, event: str, message: str | None = None) -> None:
@@ -30,116 +35,54 @@ def add_event(db: Session, deployment: Deployment, event: str, message: str | No
     )
 
 
-def get_model(db: Session, model_id: str) -> Model:
-    model = db.get(Model, model_id)
-    if model is None:
-        raise NotFoundError("Model not found", f"No model exists with id '{model_id}'.")
-    return model
+def create_model(db: Session, payload, registry: MLflowRegistry | None = None) -> ModelRecord:
+    del db
+    return _registry(registry).create_model(payload)
 
 
-def get_version(db: Session, model_id: str, version: str) -> ModelVersion:
-    row = db.scalar(
-        select(ModelVersion).where(ModelVersion.model_id == model_id, ModelVersion.version == version)
-    )
-    if row is None:
-        raise NotFoundError("Version not found", f"Model '{model_id}' has no version '{version}'.")
-    return row
+def list_models(db: Session, registry: MLflowRegistry | None = None) -> list[ModelRecord]:
+    del db
+    return _registry(registry).list_models()
 
 
-def create_model(db: Session, payload) -> Model:
-    if db.get(Model, payload.id) is not None:
-        raise ConflictError("model-exists", "Model already exists", f"Model '{payload.id}' is already registered.")
-    model = Model(id=payload.id, name=payload.name, owner=payload.owner, description=payload.description)
-    db.add(model)
-    db.commit()
-    db.refresh(model)
-    logger.info("model_created", model_id=model.id)
-    return model
+def get_model_with_versions(db: Session, model_id: str, registry: MLflowRegistry | None = None) -> ModelRecord:
+    del db
+    return _registry(registry).get_model(model_id, include_versions=True)
 
 
-def list_models(db: Session) -> list[Model]:
-    return list(db.scalars(select(Model).order_by(Model.name)).all())
+def register_version(db: Session, model_id: str, payload, registry: MLflowRegistry | None = None) -> VersionRecord:
+    del db
+    return _registry(registry).register_version(model_id, payload)
 
 
-def get_model_with_versions(db: Session, model_id: str) -> Model:
-    model = db.scalar(select(Model).options(selectinload(Model.versions)).where(Model.id == model_id))
-    if model is None:
-        raise NotFoundError("Model not found", f"No model exists with id '{model_id}'.")
-    return model
+def list_versions(db: Session, model_id: str, registry: MLflowRegistry | None = None) -> list[VersionRecord]:
+    del db
+    return _registry(registry).list_versions(model_id)
 
 
-def register_version(db: Session, model_id: str, payload) -> ModelVersion:
-    get_model(db, model_id)
-    existing = db.scalar(
-        select(ModelVersion).where(ModelVersion.model_id == model_id, ModelVersion.version == payload.version)
-    )
-    if existing is not None:
-        raise ConflictError(
-            "version-exists",
-            "Version already exists",
-            f"Version '{payload.version}' is already registered for '{model_id}'.",
-        )
-    row = ModelVersion(
-        model_id=model_id,
-        version=payload.version,
-        framework=payload.framework,
-        algorithm=payload.algorithm,
-        artifact_uri=payload.artifact_uri,
-        training_data_ref=payload.training_data_ref,
-        tags=payload.tags,
-        extra_metadata=payload.extra_metadata,
-        approved=False,
-        lifecycle_stage=LifecycleStage.DRAFT,
-    )
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    logger.info("version_registered", model_id=model_id, version=row.version)
-    return row
-
-
-def list_versions(db: Session, model_id: str) -> list[ModelVersion]:
-    get_model(db, model_id)
-    return list(
-        db.scalars(
-            select(ModelVersion).where(ModelVersion.model_id == model_id).order_by(ModelVersion.created_at)
-        ).all()
-    )
-
-
-def approve_version(db: Session, model_id: str, version: str, role: Role) -> ModelVersion:
+def promote_to_staging(
+    db: Session,
+    model_id: str,
+    version: str,
+    role: Role,
+    registry: MLflowRegistry | None = None,
+) -> VersionRecord:
     require_role(role, APPROVE_ROLES)
-    row = get_version(db, model_id, version)
-    assert_can_approve(approved=row.approved, stage=LifecycleStage(row.lifecycle_stage))
-    row.approved = True
-    if LifecycleStage(row.lifecycle_stage) in {LifecycleStage.DRAFT, LifecycleStage.VALIDATED}:
-        row.lifecycle_stage = LifecycleStage.APPROVED
-    row.lock_version += 1
-    db.commit()
-    db.refresh(row)
-    logger.info("version_approved", model_id=model_id, version=version, actor_role=str(role))
-    return row
+    del db
+    return _registry(registry).promote_to_staging(model_id, version)
 
 
-def promote_version(db: Session, model_id: str, version: str, target: LifecycleStage, role: Role) -> ModelVersion:
+def transition_stage(
+    db: Session,
+    model_id: str,
+    version: str,
+    target: LifecycleStage,
+    role: Role,
+    registry: MLflowRegistry | None = None,
+) -> VersionRecord:
     require_role(role, WRITE_ROLES | APPROVE_ROLES)
-    row = get_version(db, model_id, version)
-    current = LifecycleStage(row.lifecycle_stage)
-    assert_can_promote(current=current, target=target)
-    if target in {LifecycleStage.STAGING, LifecycleStage.PRODUCTION} and not row.approved:
-        raise ConflictError(
-            "unapproved-promotion",
-            "Version is not approved",
-            "Approve the version before promoting to staging or production.",
-        )
-    row.lifecycle_stage = target
-    if target == LifecycleStage.APPROVED:
-        row.approved = True
-    row.lock_version += 1
-    db.commit()
-    db.refresh(row)
-    logger.info("version_promoted", model_id=model_id, version=version, stage=str(target))
-    return row
+    del db
+    return _registry(registry).transition_stage(model_id, version, target)
 
 
 def create_deployment(
@@ -148,17 +91,18 @@ def create_deployment(
     role: Role,
     correlation_id: str,
     enqueue,
+    registry: MLflowRegistry | None = None,
 ) -> tuple[Deployment, bool]:
     require_role(role, WRITE_ROLES)
+    model_registry = _registry(registry)
     if payload.idempotency_key:
         existing = db.scalar(select(Deployment).where(Deployment.idempotency_key == payload.idempotency_key))
         if existing is not None:
             logger.info("idempotent_replay", deployment_id=existing.id, key=payload.idempotency_key)
             return existing, True
-    version = get_version(db, payload.model_id, payload.version)
+    version = model_registry.get_version(payload.model_id, payload.version)
     assert_can_deploy(
-        approved=version.approved,
-        stage=LifecycleStage(version.lifecycle_stage),
+        stage=version.lifecycle_stage,
         environment=payload.environment,
     )
     deployment = Deployment(
@@ -209,7 +153,14 @@ def get_deployment(db: Session, deployment_id: str) -> Deployment:
     return row
 
 
-def retry_deployment(db: Session, deployment_id: str, role: Role, enqueue) -> Deployment:
+def retry_deployment(
+    db: Session,
+    deployment_id: str,
+    role: Role,
+    enqueue,
+    registry: MLflowRegistry | None = None,
+) -> Deployment:
+    del registry
     require_role(role, WRITE_ROLES)
     row = get_deployment(db, deployment_id)
     assert_can_retry(status=DeploymentStatus(row.status))
@@ -224,7 +175,14 @@ def retry_deployment(db: Session, deployment_id: str, role: Role, enqueue) -> De
     return get_deployment(db, deployment_id)
 
 
-def rollback_deployment(db: Session, deployment_id: str, role: Role, enqueue) -> Deployment:
+def rollback_deployment(
+    db: Session,
+    deployment_id: str,
+    role: Role,
+    enqueue,
+    registry: MLflowRegistry | None = None,
+) -> Deployment:
+    del registry
     require_role(role, WRITE_ROLES)
     current = get_deployment(db, deployment_id)
     previous = db.scalar(
@@ -263,27 +221,68 @@ def rollback_deployment(db: Session, deployment_id: str, role: Role, enqueue) ->
     return get_deployment(db, restore.id)
 
 
-def list_metrics(db: Session, model_id: str, version: str | None = None, environment: str | None = None):
-    get_model(db, model_id)
-    stmt = select(MetricSample).where(MetricSample.model_id == model_id).order_by(MetricSample.timestamp)
-    if version:
-        stmt = stmt.where(MetricSample.version == version)
-    if environment:
-        stmt = stmt.where(MetricSample.environment == environment)
-    return list(db.scalars(stmt).all())
+def list_metrics(
+    db: Session,
+    model_id: str,
+    version: str | None = None,
+    environment: str | None = None,
+    registry: MLflowRegistry | None = None,
+) -> list[dict]:
+    from app.services.prometheus_query import get_prometheus_client, monitoring_status
+
+    del db
+    _registry(registry).get_model(model_id)
+    try:
+        points = get_prometheus_client().list_metric_points(
+            model_id,
+            version=version,
+            environment=environment,
+        )
+    except Exception as exc:
+        logger.warning("prometheus_query_failed", model_id=model_id, error=str(exc))
+        return []
+    return [
+        {
+            "timestamp": point.timestamp,
+            "model_id": point.model_id,
+            "version": point.version,
+            "environment": point.environment,
+            "latency_ms": point.latency_ms,
+            "throughput_rpm": point.throughput_rpm,
+            "error_rate": point.error_rate,
+            "quality_score": point.quality_score,
+            "drift_score": point.drift_score,
+            "availability": point.availability,
+            "last_successful_inference": point.timestamp,
+            "monitoring_status": monitoring_status(point.error_rate, point.drift_score),
+        }
+        for point in points
+    ]
 
 
-def process_deployment(db: Session, deployment_id: str, delay_seconds: float = 0.0) -> Deployment:
+def process_deployment(
+    db: Session,
+    deployment_id: str,
+    delay_seconds: float = 0.0,
+    registry: MLflowRegistry | None = None,
+) -> Deployment:
     import time
 
     from app.workers.runtime import SimulatedModelRuntime
 
+    model_registry = _registry(registry)
     row = db.get(Deployment, deployment_id)
     if row is None:
         raise NotFoundError("Deployment not found", f"No deployment exists with id '{deployment_id}'.")
-    version = db.get(ModelVersion, row.version_id)
-    if version is None:
-        raise NotFoundError("Version not found", "Deployment references a missing version.")
+    try:
+        version = model_registry.get_version(row.model_id, row.version)
+    except NotFoundError as exc:
+        row.status = DeploymentStatus.FAILED
+        row.failure_reason = exc.detail
+        row.failure_class = "version_not_found"
+        add_event(db, row, "version_not_found", exc.detail)
+        db.commit()
+        return row
 
     row.status = DeploymentStatus.VALIDATING
     add_event(db, row, "validation_started", "Checking approval and environment controls.")
@@ -291,10 +290,13 @@ def process_deployment(db: Session, deployment_id: str, delay_seconds: float = 0
     if delay_seconds:
         time.sleep(delay_seconds)
 
+    if row.previous_deployment_id and version.lifecycle_stage == LifecycleStage.NONE:
+        model_registry.transition_stage(row.model_id, row.version, LifecycleStage.STAGING)
+        version = model_registry.get_version(row.model_id, row.version)
+
     try:
         assert_can_deploy(
-            approved=version.approved,
-            stage=LifecycleStage(version.lifecycle_stage),
+            stage=version.lifecycle_stage,
             environment=Environment(row.environment),
         )
     except ConflictError as exc:
@@ -329,12 +331,9 @@ def process_deployment(db: Session, deployment_id: str, delay_seconds: float = 0
     row.failure_reason = None
     row.failure_class = None
     target_stage = (
-        LifecycleStage.PRODUCTION
-        if row.environment == Environment.PRODUCTION
-        else LifecycleStage.STAGING
+        LifecycleStage.PRODUCTION if row.environment == Environment.PRODUCTION else LifecycleStage.STAGING
     )
-    version.lifecycle_stage = target_stage
-    version.lock_version += 1
+    model_registry.set_lifecycle_stage_after_deploy(row.model_id, row.version, target_stage)
     add_event(db, row, "deployment_completed", result.message)
     db.commit()
     logger.info("deployment_succeeded", deployment_id=row.id, stage=str(target_stage))

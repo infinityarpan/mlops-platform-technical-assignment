@@ -4,40 +4,46 @@ Operators at a plant need somewhere to park model versions, promote them, and se
 
 **Built:** registry, lifecycle, async deploy + retry/rollback, metrics read API, Angular screens, Compose, tests.
 
-**Not built (on purpose):** real KServe, OIDC, tenants, a metrics warehouse. Those are sketched below so the cut is explicit.
+**Not built (on purpose):** real KServe, tenants, a metrics warehouse. Those are sketched below so the cut is explicit. No Kubernetes manifests in the repo — Compose is what you run.
 
 ```
 browser  →  nginx/Angular
-                →  FastAPI  →  Postgres
-                     │
+                →  FastAPI  →  MLflow (models/versions)
+                     │    └──── Pushgateway → Prometheus (inference metrics + Evidently drift)
+                     │              Postgres (deployments, events)
+                     │    control-plane /metrics → Prometheus (HTTP counters only)
                      └─ Redis ─ Celery worker ─ fake runtime
+                              Evidently AI (drift on feature CSVs)
 ```
 
-HTTP is the only contract the UI knows. Domain functions in `backend/app/domain` are used by both the API and the worker. Postgres is the source of truth; Redis is just how we get work off the request thread.
+HTTP is the only contract the UI knows. Domain functions in `backend/app/domain` are used by both the API and the worker. **MLflow** holds registered models and version artifacts; **Prometheus** holds time-series operational metrics; **Evidently** computes drift from reference/current feature datasets under `data/drift/`. Postgres holds deployments and events. Redis is just how we get work off the request thread. Registry rows and metric samples are **seeded from JSON/CSV** for the assignment demo.
 
 ## Pieces
 
 - **Angular** — inventory, version compare, deploys, monitoring, timeline. Loading / empty / error on each view.
 - **FastAPI** — validation, role header, 202 on deploy, OpenAPI at `/docs`.
-- **Postgres** — models, versions, deployments, events, metric samples.
+- **MLflow 3** — registered models, version artifacts, alias-based lifecycle (`staging`, `production`).
+- **Postgres** — deployments, events.
+- **Prometheus** — inference latency, errors, throughput, quality, availability; drift gauge from Evidently.
+- **Evidently AI** — data drift score from reference vs current feature CSVs (`data/drift/`).
 - **Celery** — `REQUESTED → VALIDATING → DEPLOYING → SUCCEEDED|FAILED`.
 - **SimulatedModelRuntime** — success or `runtime_timeout`. Swap this class for a real serving client later.
 
 ## Data
 
-A **model** keeps a stable id (`pump-failure-predictor`). A **version** has artifact URI, tags, `approved`, `lifecycle_stage`, and `lock_version` for optimistic concurrency.
+A **model** keeps a stable id (`pump-failure-predictor`). A **version** has artifact URI, tags, MLflow `lifecycle_stage`, and `lock_version` for optimistic concurrency.
 
-Stages: `DRAFT → VALIDATED → APPROVED → STAGING → PRODUCTION`, plus `ARCHIVED`.
+Stages: MLflow aliases `@staging` / `@production`, plus an archived tag on retired versions.
 
 A **deployment** is “put this version on staging|production”. Status: `REQUESTED → VALIDATING → DEPLOYING → SUCCEEDED|FAILED`, or `ROLLED_BACK`. Events are append-only.
 
-Metrics in this demo are rows loaded from the assignment CSV, not scrapes from a live endpoint.
+Metrics are pushed to **Pushgateway** (inference/demo metrics) and scraped into Prometheus; the control plane `/metrics` endpoint only exposes platform HTTP counters. Drift is computed by Evidently during seed and pushed with inference metrics. The monitoring API queries Prometheus.
 
 ## Deploy path
 
-1. Operator posts a deploy. Production requires `approved` and a sensible stage; otherwise 409 and we never enqueue.
+1. Operator posts a deploy. Production requires `Staging` or `Production` stage; otherwise 409 and we never enqueue.
 2. Row is `REQUESTED`, HTTP 202, Celery task.
-3. Worker re-checks rules (in case someone un-approved in the meantime), calls the runtime, writes events.
+3. Worker re-checks rules (in case staging was revoked in the meantime), calls the runtime, writes events.
 4. Retry only from `FAILED` (and clears the demo `simulate_failure` flag).
 5. Rollback only from succeeded **production**, and only if an older succeeded deploy exists. We mark the current row rolled back and enqueue a restore of that previous version.
 
@@ -47,7 +53,9 @@ If the runtime says OK and the DB commit dies, the next retry goes through VALID
 
 ## Auth
 
-`X-Actor-Role`: viewer / approver / operator / admin. Approvers approve; operators deploy. Trivial to spoof — fine for the exercise, not for a cluster. Artifact URIs are stored, never fetched with cloud creds here.
+**Keycloak OIDC** in Docker Compose (`AUTH_MODE=oidc`): Angular login → Bearer JWT → FastAPI validates against Keycloak JWKS and maps realm roles (`viewer`, `approver`, `operator`, `admin`).
+
+**Header fallback** for pytest/local dev (`AUTH_MODE=header`): `X-Actor-Role` header, default `admin`.
 
 ## Ops
 

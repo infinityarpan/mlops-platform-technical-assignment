@@ -1,9 +1,13 @@
 .venv/
 __pycache__/
 *.pyc
-.pytest_cache/
+backend/tests/.mlflow_test/
+backend/tests/.mlflow_unit/
+backend/tests/.evidently_test/
+data/drift/
 .ruff_cache/
 mlops.db
+mlflow.db
 .env
 node_modules/
 dist/

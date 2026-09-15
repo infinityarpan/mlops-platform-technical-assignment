@@ -28,8 +28,18 @@ export class ApiService {
     return this.http.get<ModelVersion[]>(`${this.base}/models/${modelId}/versions`);
   }
 
-  approveVersion(modelId: string, version: string): Observable<ModelVersion> {
-    return this.http.post<ModelVersion>(`${this.base}/models/${modelId}/versions/${version}/approve`, {});
+  promoteToStaging(modelId: string, version: string): Observable<ModelVersion> {
+    return this.http.post<ModelVersion>(
+      `${this.base}/models/${modelId}/versions/${version}/promote-to-staging`,
+      {}
+    );
+  }
+
+  transitionStage(modelId: string, version: string, targetStage: string): Observable<ModelVersion> {
+    return this.http.post<ModelVersion>(
+      `${this.base}/models/${modelId}/versions/${version}/transition-stage`,
+      { target_stage: targetStage }
+    );
   }
 
   listDeployments(modelId?: string): Observable<Deployment[]> {

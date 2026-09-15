@@ -37,7 +37,6 @@ class VersionRead(ORMModel):
     training_data_ref: Optional[str]
     tags: list[str]
     extra_metadata: dict[str, Any]
-    approved: bool
     lifecycle_stage: LifecycleStage
     lock_version: int
     created_at: datetime
@@ -64,7 +63,7 @@ class ModelSummary(ORMModel):
     production_version: Optional[str] = None
 
 
-class PromoteRequest(BaseModel):
+class StageTransitionRequest(BaseModel):
     target_stage: LifecycleStage
 
 

@@ -8,7 +8,7 @@ def test_health(client: TestClient):
     assert client.get("/ready").status_code == 200
 
 
-def test_register_approve_deploy_metrics_rollback(client: TestClient):
+def test_register_promote_to_staging_deploy_metrics_rollback(client: TestClient):
     model = client.post(
         "/models",
         json={"id": "pump-failure-predictor", "name": "Pump Failure Predictor", "owner": "Reliability"},
@@ -27,17 +27,12 @@ def test_register_approve_deploy_metrics_rollback(client: TestClient):
     )
     assert v1.status_code == 201 and v2.status_code == 201
 
-    approved = client.post(
-        "/models/pump-failure-predictor/versions/2.0.0/approve",
+    promoted = client.post(
+        "/models/pump-failure-predictor/versions/1.0.0/promote-to-staging",
         headers=HEADERS,
     )
-    assert approved.status_code == 200
-    assert approved.json()["approved"] is True
-
-    client.post(
-        "/models/pump-failure-predictor/versions/1.0.0/approve",
-        headers=HEADERS,
-    )
+    assert promoted.status_code == 200
+    assert promoted.json()["lifecycle_stage"] == "Staging"
 
     client.post(
         "/models",
@@ -59,7 +54,7 @@ def test_register_approve_deploy_metrics_rollback(client: TestClient):
         headers=HEADERS,
     )
     assert forbidden.status_code == 409
-    assert "Unapproved" in forbidden.json()["title"] or "unapproved" in forbidden.json()["detail"].lower() or "Approve" in forbidden.json()["detail"]
+    assert "Staging" in forbidden.json()["detail"] or "eligible" in forbidden.json()["detail"].lower()
 
     first = client.post(
         "/deployments",
@@ -72,6 +67,13 @@ def test_register_approve_deploy_metrics_rollback(client: TestClient):
     )
     assert first.status_code == 202
     assert first.json()["status"] == "SUCCEEDED"
+
+    promoted_v2 = client.post(
+        "/models/pump-failure-predictor/versions/2.0.0/promote-to-staging",
+        headers=HEADERS,
+    )
+    assert promoted_v2.status_code == 200
+    assert promoted_v2.json()["lifecycle_stage"] == "Staging"
 
     second = client.post(
         "/deployments",
@@ -102,7 +104,7 @@ def test_retry_failed_and_idempotency(client: TestClient):
         json={"version": "3.0.0", "artifact_uri": "s3://models/v/3.0.0"},
         headers=HEADERS,
     )
-    client.post("/models/valve-health-model/versions/3.0.0/approve", headers=HEADERS)
+    client.post("/models/valve-health-model/versions/3.0.0/promote-to-staging", headers=HEADERS)
 
     failed = client.post(
         "/deployments",
