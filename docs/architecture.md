@@ -4,7 +4,7 @@ Operators at a plant need somewhere to park model versions, promote them, and se
 
 **Built:** registry, lifecycle, async deploy + retry/rollback, metrics read API, Angular screens, Compose, tests.
 
-**Not built (on purpose):** real KServe, OIDC, tenants, a metrics warehouse. Those are sketched below so the cut is explicit. No Kubernetes manifests in the repo — Compose is what you run.
+**Not built (on purpose):** real KServe, tenants, a metrics warehouse. Those are sketched below so the cut is explicit. No Kubernetes manifests in the repo — Compose is what you run.
 
 ```
 browser  →  nginx/Angular
@@ -16,7 +16,7 @@ browser  →  nginx/Angular
                               Evidently AI (drift on feature CSVs)
 ```
 
-HTTP is the only contract the UI knows. Domain functions in `backend/app/domain` are used by both the API and the worker. **MLflow** holds registered models and version artifacts; **Prometheus** holds time-series operational metrics; **Evidently** computes drift from reference/current feature datasets under `data/drift/`. Postgres holds deployments and events. Redis is just how we get work off the request thread.
+HTTP is the only contract the UI knows. Domain functions in `backend/app/domain` are used by both the API and the worker. **MLflow** holds registered models and version artifacts; **Prometheus** holds time-series operational metrics; **Evidently** computes drift from reference/current feature datasets under `data/drift/`. Postgres holds deployments and events. Redis is just how we get work off the request thread. Registry rows and metric samples are **seeded from JSON/CSV** for the assignment demo.
 
 ## Pieces
 

@@ -2,7 +2,7 @@
 
 Assignment for **Principal / Tech Lead**: a small control plane for industrial models — register versions, promote them to staging, deploy, watch a few metrics, retry or roll back.
 
-I did not train models. The interesting bits are the lifecycle rules, the async deploy worker, and making `docker compose up --build` actually work.
+I did not train models. The interesting bits are the lifecycle rules, the async deploy worker, and making `docker compose up --build` actually work. Models and metrics in this repo come from **sample JSON and CSV** (see `data/`). The real pump-failure stack is a separate monorepo: **`pump-failure-mlops`** (`training/`, `serving/`, `platform/`).
 
 ## How it is put together
 
@@ -62,7 +62,7 @@ cd frontend && npx ng test --watch=false --browsers=ChromeHeadless
 
 ## Trying the flows
 
-Seed loads models/deployments, replays the metrics CSV to **Pushgateway**, and runs Evidently drift checks per model.
+Seed loads models/deployments from `data/sample_model_registry.json` and `data/sample_deployment_events.json`, replays `data/sample_model_metrics.csv` to **Pushgateway**, and runs Evidently drift checks per model.
 
 - Inventory and version compare on Pump Failure Predictor (`1.0.0` vs `2.0.0`).
 - Log in as `viewer`, hit Deploy — you should see the error card (403).
