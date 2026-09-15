@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     metrics_degraded_error_rate: float = 0.02
     metrics_degraded_drift_score: float = 0.3
     drift_data_dir: Path = Path("data/drift")
+    auth_mode: str = "header"
+    keycloak_issuer: str = "http://localhost:8080/realms/mlops"
+    keycloak_jwks_url: str = "http://localhost:8080/realms/mlops/protocol/openid-connect/certs"
+    keycloak_client_id: str = "mlops-ui"
 
 
 settings = Settings()

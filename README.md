@@ -31,8 +31,27 @@ Postgres user/password in Compose (`mlops`/`mlops`) is for local demo only.
 - MLflow UI: http://localhost:5000
 - Prometheus: http://localhost:9090
 - Pushgateway: http://localhost:9091
+- Keycloak: http://localhost:8080 (admin console: `admin` / `admin`)
 
-Without Docker: copy `.env.example`, bring up Postgres + Redis + MLflow, `alembic upgrade head` from `backend/`, then uvicorn + a Celery worker. `cd frontend && npm start` proxies `/api` to port 8000.
+## Authentication (Keycloak)
+
+Docker Compose runs **Keycloak** with realm **`mlops`** and OIDC client **`mlops-ui`**. The production frontend build uses the authorization-code flow with PKCE; the API validates JWTs (`AUTH_MODE=oidc`).
+
+Demo users (password = username):
+
+| User | Role |
+|------|------|
+| `viewer` | read-only |
+| `approver` | promote to staging |
+| `operator` | deploy / retry / rollback |
+| `admin` | all of the above |
+
+1. Open http://localhost:4200 → **Login** → sign in (e.g. `operator` / `operator`)
+2. The UI sends `Authorization: Bearer …` on API calls; roles come from Keycloak realm roles
+
+Local pytest and `ng serve` use `AUTH_MODE=header` and the role dropdown instead (see `.env.example`).
+
+Without Docker: copy `.env.example`, bring up Postgres + Redis + MLflow + Keycloak, `alembic upgrade head` from `backend/`, then uvicorn + a Celery worker. `cd frontend && npm start` proxies `/api` to port 8000.
 
 ## Tests
 
@@ -46,15 +65,14 @@ cd frontend && npx ng test --watch=false --browsers=ChromeHeadless
 Seed loads models/deployments, replays the metrics CSV to **Pushgateway**, and runs Evidently drift checks per model.
 
 - Inventory and version compare on Pump Failure Predictor (`1.0.0` vs `2.0.0`).
-- Role dropdown → `viewer`, hit Deploy — you should see the error card (403).
-- Production deploy of compressor `1.1.0` is rejected until it is promoted to Staging.
-- Promote to staging, deploy, then Rollback on a succeeded production row.
+- Log in as `viewer`, hit Deploy — you should see the error card (403).
+- Log in as `approver`, promote compressor `1.1.0` to staging; as `operator`, deploy and roll back.
 - Check **Simulate failure**, deploy, Retry.
 - Monitoring for `pump-failure-predictor`. Timeline is the event log.
 
 `POST /deployments` with a repeated `Idempotency-Key` returns the original row. Production deploy from stage `None` is **409**.
 
-The toolbar sends `X-Actor-Role`. Default on the API if you omit it is `admin`, so local curl stays simple; do not ship that.
+With `AUTH_MODE=header` (tests / local dev), the toolbar role dropdown sends `X-Actor-Role`. With `AUTH_MODE=oidc` (Compose), use Keycloak login instead.
 
 ## Screenshots
 

@@ -1,3 +1,7 @@
+import os
+
+os.environ.setdefault("AUTH_MODE", "header")
+
 import shutil
 import uuid
 from pathlib import Path

@@ -53,7 +53,9 @@ If the runtime says OK and the DB commit dies, the next retry goes through VALID
 
 ## Auth
 
-`X-Actor-Role`: viewer / approver / operator / admin. Approvers promote to staging; operators deploy. Trivial to spoof — fine for the exercise, not for a cluster. Artifact URIs are stored, never fetched with cloud creds here.
+**Keycloak OIDC** in Docker Compose (`AUTH_MODE=oidc`): Angular login → Bearer JWT → FastAPI validates against Keycloak JWKS and maps realm roles (`viewer`, `approver`, `operator`, `admin`).
+
+**Header fallback** for pytest/local dev (`AUTH_MODE=header`): `X-Actor-Role` header, default `admin`.
 
 ## Ops
 

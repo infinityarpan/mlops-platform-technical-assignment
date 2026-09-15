@@ -4,7 +4,8 @@ Compose UI calls `/api/...` (nginx strips the prefix). Direct: `http://localhost
 
 Headers worth knowing:
 
-- `X-Actor-Role` — `viewer` | `approver` | `operator` | `admin`. If you omit it, the API currently defaults to `admin` so local scripts are less annoying.
+- `X-Actor-Role` — used when `AUTH_MODE=header` (tests/local dev).
+- `Authorization: Bearer <jwt>` — used when `AUTH_MODE=oidc` (Docker Compose + Keycloak).
 - `X-Correlation-ID` — generated when missing.
 - `Idempotency-Key` — `POST /deployments`.
 

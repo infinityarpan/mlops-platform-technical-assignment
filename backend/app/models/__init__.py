@@ -1,3 +1,3 @@
-from app.models.entities import Deployment, DeploymentEvent, MetricSample
+from app.models.entities import Deployment, DeploymentEvent
 
-__all__ = ["Deployment", "DeploymentEvent", "MetricSample"]
+__all__ = ["Deployment", "DeploymentEvent"]

@@ -4,12 +4,18 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { AppComponent } from './app.component';
+import { AuthService } from './auth.service';
 
 describe('AppComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [AppComponent, NoopAnimationsModule],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting()]
+      providers: [
+        provideRouter([]),
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AuthService, useValue: { isAuthenticated: () => true, username: () => 'admin', effectiveRole: () => 'admin', login: () => undefined, logout: () => undefined } }
+      ]
     }).compileComponents();
   });
 

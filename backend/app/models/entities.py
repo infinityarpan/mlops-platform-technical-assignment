@@ -5,7 +5,6 @@ from uuid import uuid4
 from sqlalchemy import (
     Boolean,
     DateTime,
-    Float,
     ForeignKey,
     Index,
     String,
@@ -71,22 +70,3 @@ class DeploymentEvent(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     deployment: Mapped[Deployment] = relationship(back_populates="events")
-
-
-class MetricSample(Base):
-    __tablename__ = "metric_samples"
-    __table_args__ = (Index("ix_metrics_model_ts", "model_id", "timestamp"),)
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
-    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    model_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    version: Mapped[str] = mapped_column(String(64), nullable=False)
-    environment: Mapped[str] = mapped_column(String(32), nullable=False)
-    latency_ms: Mapped[float] = mapped_column(Float, nullable=False)
-    throughput_rpm: Mapped[float] = mapped_column(Float, nullable=False)
-    error_rate: Mapped[float] = mapped_column(Float, nullable=False)
-    quality_score: Mapped[float] = mapped_column(Float, nullable=False)
-    drift_score: Mapped[float] = mapped_column(Float, nullable=False)
-    availability: Mapped[float] = mapped_column(Float, nullable=False)
-    last_successful_inference: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    monitoring_status: Mapped[str] = mapped_column(String(32), default="healthy", nullable=False)
